@@ -17,7 +17,7 @@ export async function getHealthFitnessPlan(input: HealthFitnessInput): Promise<H
 
 const healthFitnessAnalysisPrompt = ai.definePrompt({
     name: 'healthFitnessAnalysisPrompt',
-    model: 'googleai/gemini-2.5-flash',
+    model: 'googleai/gemma-4-31b-it',
     input: { schema: HealthFitnessInputSchema },
     output: { schema: HealthFitnessOutputSchema },
     prompt: `You are an expert AI Health & Fitness Coach. Your task is to create a comprehensive, holistic, and personalized 4-week health and fitness plan based on the user's detailed profile.

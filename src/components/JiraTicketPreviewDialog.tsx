@@ -15,9 +15,81 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Bug, FileText, Wand2, Paperclip, FileImage, File } from 'lucide-react';
+import { Loader2, Bug, FileText, Wand2, Paperclip, FileImage, File } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import Image from 'next/image';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/context/auth-context';
+import { fetchJiraAttachmentAction } from '@/app/actions';
+
+function SecureAttachment({ att, getAttachmentIcon }: { att: any, getAttachmentIcon: (mime: string) => JSX.Element }) {
+    const { credentials } = useAuth();
+    const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(null);
+    const [isDownloading, setIsDownloading] = useState(false);
+
+    useEffect(() => {
+        if (att.thumbnail && credentials) {
+            fetchJiraAttachmentAction(credentials, att.thumbnail)
+                .then(res => setThumbnailSrc(`data:${res.mimeType};base64,${res.base64}`))
+                .catch(err => console.error("Failed to load thumbnail:", err));
+        }
+    }, [att.thumbnail, credentials]);
+
+    const handleDownload = async () => {
+        if (!credentials) return;
+        try {
+            setIsDownloading(true);
+            const res = await fetchJiraAttachmentAction(credentials, att.content);
+            const link = document.createElement('a');
+            link.href = `data:${res.mimeType};base64,${res.base64}`;
+            link.download = att.filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (error) {
+            console.error("Failed to download attachment:", error);
+            alert("Failed to download attachment. You might not have permission.");
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
+    return (
+        <button 
+            onClick={handleDownload}
+            disabled={isDownloading}
+            className="group block w-full border rounded-lg overflow-hidden text-center hover:bg-muted/50 transition-colors relative"
+        >
+            {isDownloading && (
+                <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-10">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+            )}
+            {att.thumbnail ? (
+                thumbnailSrc ? (
+                    <Image
+                        src={thumbnailSrc}
+                        alt={att.filename}
+                        width={150}
+                        height={150}
+                        className="object-cover aspect-square w-full"
+                    />
+                ) : (
+                    <div className="h-32 flex items-center justify-center p-2 bg-muted/20 animate-pulse">
+                        <FileImage className="h-4 w-4 text-muted-foreground/50" />
+                    </div>
+                )
+            ) : (
+                <div className="h-32 flex items-center justify-center p-2">
+                    {getAttachmentIcon(att.mimeType)}
+                </div>
+            )}
+            <p className="text-xs p-2 truncate text-muted-foreground group-hover:text-foreground">
+                {att.filename}
+            </p>
+        </button>
+    );
+}
 
 interface JiraTicketPreviewDialogProps {
   issue: JiraIssue | null;
@@ -106,30 +178,7 @@ export function JiraTicketPreviewDialog({ issue, isOpen, onClose, onGenerateTest
                     </h3>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-2">
                         {issue.attachments.map(att => (
-                            <a 
-                                key={att.id} 
-                                href={att.content} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="group block border rounded-lg overflow-hidden text-center hover:bg-muted/50 transition-colors"
-                            >
-                                {att.thumbnail ? (
-                                    <Image
-                                        src={att.thumbnail}
-                                        alt={att.filename}
-                                        width={150}
-                                        height={150}
-                                        className="object-cover aspect-square w-full"
-                                    />
-                                ) : (
-                                    <div className="h-32 flex items-center justify-center p-2">
-                                        {getAttachmentIcon(att.mimeType)}
-                                    </div>
-                                )}
-                                <p className="text-xs p-2 truncate text-muted-foreground group-hover:text-foreground">
-                                    {att.filename}
-                                </p>
-                            </a>
+                            <SecureAttachment key={att.id} att={att} getAttachmentIcon={getAttachmentIcon} />
                         ))}
                     </div>
                 </section>

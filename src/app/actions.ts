@@ -286,14 +286,14 @@ export async function fetchIssuesAction(
       "attachment"
     ];
     
-    const bodyData = {
+    const bodyData: any = {
         jql: jql,
-        startAt: (page - 1) * pageSize,
         maxResults: pageSize,
         fields: fieldsToFetch,
     };
     
-    const apiUrl = `${jiraUrl}/rest/api/3/search`;
+    // Using the new search/jql endpoint as legacy search endpoints are permanently removed
+    const apiUrl = `${jiraUrl}/rest/api/3/search/jql`;
 
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -354,10 +354,10 @@ export async function fetchIssuesAction(
 
     return {
       issues: mappedIssues,
-      total: issuesData.total,
+      total: issuesData.total || mappedIssues.length,
       page: page,
       pageSize: pageSize,
-      totalPages: Math.ceil(issuesData.total / pageSize),
+      totalPages: issuesData.nextPageToken ? page + 1 : page,
     };
 
   } catch (error) {
@@ -828,5 +828,36 @@ export async function analyzeVisualsAction(input: VisualAnalysisInput): Promise<
       friendlyMessage = `Failed to analyze visuals: ${error.message}`;
     }
     throw new Error(friendlyMessage);
+  }
+}
+
+// Fetch Jira Attachment Proxy Action
+export async function fetchJiraAttachmentAction(credentials: JiraCredentials, attachmentUrl: string): Promise<{ base64: string, mimeType: string }> {
+  try {
+    const validatedCredentials = CredentialsSchema.parse(credentials);
+    const { email, apiToken } = validatedCredentials;
+    const authHeader = `Basic ${Buffer.from(`${email}:${apiToken}`).toString('base64')}`;
+
+    const res = await fetch(attachmentUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': authHeader,
+      },
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`Jira API Error (fetch attachment): Status ${res.status}`, errorText);
+      throw new Error(`Failed to fetch attachment from Jira. Status: ${res.status}`);
+    }
+
+    const mimeType = res.headers.get('content-type') || 'application/octet-stream';
+    const arrayBuffer = await res.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString('base64');
+    
+    return { base64, mimeType };
+  } catch (error: any) {
+    console.error("Error fetching Jira attachment:", error);
+    throw new Error(error.message || "Failed to proxy attachment fetch");
   }
 }
