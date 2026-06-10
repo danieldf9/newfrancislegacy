@@ -8,6 +8,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { ResumeBuilderInputSchema, ResumeBuilderOutputSchema, type ResumeBuilderInput, type ResumeBuilderOutput } from '@/lib/schemas';
+import { executeWithFallback } from '@/ai/fallback';
 
 export async function buildResume(input: ResumeBuilderInput): Promise<ResumeBuilderOutput> {
     return resumeBuilderFlow(input);
@@ -75,10 +76,6 @@ const resumeBuilderFlow = ai.defineFlow(
     outputSchema: ResumeBuilderOutputSchema,
   },
   async (input) => {
-    const { output } = await resumeBuilderPrompt(input);
-    if (!output) {
-      throw new Error("The AI failed to generate a resume. Please try adjusting your inputs.");
-    }
-    return output;
+    return await executeWithFallback(resumeBuilderPrompt, input);
   }
 );

@@ -9,6 +9,7 @@ import { ai } from '@/ai/genkit';
 import type { InterviewCrackerInput } from '@/lib/schemas';
 import { InterviewCrackerInputSchema } from '@/lib/schemas';
 import { z } from 'zod';
+import { executeWithFallback } from '@/ai/fallback';
 
 const InterviewPlanSchema = z.object({
   plan: z.string().describe("A personalized interview preparation plan in Markdown format."),
@@ -52,10 +53,6 @@ const interviewCrackerFlow = ai.defineFlow(
     outputSchema: InterviewPlanSchema,
   },
   async (input) => {
-    const { output } = await interviewCrackerPrompt(input);
-    if (!output) {
-      throw new Error("The AI failed to generate an interview plan. Please try again.");
-    }
-    return output;
+    return await executeWithFallback(interviewCrackerPrompt, input);
   }
 );

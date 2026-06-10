@@ -9,6 +9,7 @@
 import { ai } from '@/ai/genkit';
 import type { HealthFitnessInput, HealthFitnessOutput } from '@/lib/schemas';
 import { HealthFitnessInputSchema, HealthFitnessOutputSchema } from '@/lib/schemas';
+import { executeWithFallback } from '@/ai/fallback';
 
 
 export async function getHealthFitnessPlan(input: HealthFitnessInput): Promise<HealthFitnessOutput> {
@@ -74,10 +75,6 @@ const healthFitnessAnalysisFlow = ai.defineFlow(
     outputSchema: HealthFitnessOutputSchema,
   },
   async (input) => {
-    const { output } = await healthFitnessAnalysisPrompt(input);
-    if (!output) {
-      throw new Error("The AI failed to generate a health and fitness plan. Please try adjusting your inputs.");
-    }
-    return output;
+    return await executeWithFallback(healthFitnessAnalysisPrompt, input);
   }
 );

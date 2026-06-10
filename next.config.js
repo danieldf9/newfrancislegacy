@@ -8,6 +8,7 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  serverExternalPackages: ['genkit', '@genkit-ai/core', '@genkit-ai/google-genai', '@opentelemetry/sdk-node'],
   images: {
     remotePatterns: [
       {

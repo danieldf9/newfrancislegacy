@@ -6,6 +6,7 @@
 import { ai } from '@/ai/genkit';
 import type { MockInterviewState, MockInterviewOutput } from '@/lib/schemas';
 import { MockInterviewStateSchema, MockInterviewOutputSchema } from '@/lib/schemas';
+import { executeWithFallback } from '@/ai/fallback';
 
 const mockInterviewPrompt = ai.definePrompt({
     name: 'mockInterviewPrompt',
@@ -37,9 +38,5 @@ Your response MUST be a single, valid JSON object.
 });
 
 export async function getMockInterviewResponse(input: MockInterviewState): Promise<MockInterviewOutput> {
-    const { output } = await mockInterviewPrompt(input);
-    if (!output) {
-      throw new Error("The AI failed to respond. Please try again.");
-    }
-    return output;
+    return await executeWithFallback(mockInterviewPrompt, input);
 }

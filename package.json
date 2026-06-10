@@ -53,6 +53,7 @@
     "googleapis": "^140.0.1",
     "lucide-react": "^0.475.0",
     "next": "15.2.8",
+    "playwright": "^1.60.0",
     "razorpay": "^2.9.4",
     "react": "^18.3.1",
     "react-chartjs-2": "^5.2.0",

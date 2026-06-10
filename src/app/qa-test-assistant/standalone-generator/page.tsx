@@ -15,6 +15,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Wand2, FileText, Download, AlertCircle } from 'lucide-react';
 import { generateTestCasesAction, convertTestCasesToExcel } from '@/app/actions';
 import type { GenerateTestCasesOutput } from '@/lib/schemas';
@@ -24,6 +25,7 @@ const formSchema = z.object({
   projectKey: z.string().min(1, "Project key is required.").max(10, "Project key seems too long."),
   description: z.string().min(20, "Please provide a more detailed description."),
   acceptanceCriteria: z.string().optional(),
+  coverageLevel: z.enum(['Basic', 'Standard', 'End-to-End', 'Max', 'XMax']).default('Basic'),
 });
 
 type StandaloneGeneratorFormValues = z.infer<typeof formSchema>;
@@ -45,6 +47,7 @@ export default function StandaloneGeneratorPage() {
       projectKey: "PROJ",
       description: "",
       acceptanceCriteria: "",
+      coverageLevel: "Basic",
     },
   });
 
@@ -150,6 +153,30 @@ export default function StandaloneGeneratorPage() {
                     <FormControl>
                       <Textarea placeholder="Paste the acceptance criteria here, one per line..." {...field} rows={5} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="coverageLevel"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Coverage Level</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a coverage level" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Basic">Basic (3-5 tests: Happy path & critical failures)</SelectItem>
+                        <SelectItem value="Standard">Standard (6-10 tests: Includes edge cases)</SelectItem>
+                        <SelectItem value="End-to-End">End-to-End (10-15 tests: Full user journeys)</SelectItem>
+                        <SelectItem value="Max">Max (15-25 tests: Comprehensive & boundaries)</SelectItem>
+                        <SelectItem value="XMax">XMax (25+ tests: Extreme edge cases & full coverage)</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

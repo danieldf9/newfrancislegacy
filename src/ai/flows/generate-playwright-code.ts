@@ -79,6 +79,7 @@ Instructions for Code Generation:
 **Example Structure:**
 \'\'\'typescript
 import { test, expect, type Page } from '@playwright/test';
+import { executeWithFallback } from '@/ai/fallback';
 
 // --- Page Objects ---
 class LoginPage {
@@ -130,11 +131,6 @@ const generatePlaywrightCodeFlow = ai.defineFlow(
     outputSchema: GeneratePlaywrightCodeOutputSchema,
   },
   async (input) => {
-    const {output} = await generatePlaywrightCodePrompt(input);
-    if (!output) {
-      console.warn("AI analysis for Playwright code returned no output.");
-      return { playwrightCode: "// AI failed to generate Playwright code. Please check the input and try again." };
-    }
-    return output;
+    return await executeWithFallback(generatePlaywrightCodePrompt, input);
   }
 );

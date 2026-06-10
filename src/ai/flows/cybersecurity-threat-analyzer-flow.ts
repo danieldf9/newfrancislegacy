@@ -9,6 +9,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import type { CybersecurityThreatAnalyzerInput, CybersecurityThreatAnalyzerOutput } from '@/lib/schemas';
 import { CybersecurityThreatAnalyzerInputSchema, CybersecurityThreatAnalyzerOutputSchema } from '@/lib/schemas';
+import { executeWithFallback } from '@/ai/fallback';
 
 export async function analyzeForThreats(input: CybersecurityThreatAnalyzerInput): Promise<CybersecurityThreatAnalyzerOutput> {
   return cybersecurityThreatAnalyzerFlow(input);
@@ -51,10 +52,6 @@ const cybersecurityThreatAnalyzerFlow = ai.defineFlow(
     outputSchema: CybersecurityThreatAnalyzerOutputSchema,
   },
   async (input) => {
-    const { output } = await threatAnalysisPrompt(input);
-    if (!output) {
-      throw new Error("The AI failed to analyze the text for threats. Please try again.");
-    }
-    return output;
+    return await executeWithFallback(threatAnalysisPrompt, input);
   }
 );

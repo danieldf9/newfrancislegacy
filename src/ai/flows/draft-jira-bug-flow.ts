@@ -10,6 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import { DraftJiraBugInputSchema, DraftJiraBugOutputSchema, type DraftJiraBugInput, type DraftJiraBugOutput } from '@/lib/schemas';
+import { executeWithFallback } from '@/ai/fallback';
 
 export async function draftJiraBug(input: DraftJiraBugInput): Promise<DraftJiraBugOutput> {
   return draftJiraBugFlow(input);

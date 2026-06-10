@@ -3,7 +3,7 @@
 
 import type { JiraIssue } from '@/app/actions';
 import { generateTestCasesAction, attachTestCasesToJiraAction, convertTestCasesToExcel } from '@/app/actions';
-import type { GenerateTestCasesOutput } from '@/ai/flows/generate-test-cases';
+import type { GenerateTestCasesOutput } from '@/lib/schemas';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -25,7 +25,15 @@ import {
 } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, AlertCircle, Wand2, FileSpreadsheet, Download } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Loader2, AlertCircle, Wand2, FileSpreadsheet, Download, Play } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
 
 interface TestCaseDialogProps {
@@ -42,41 +50,52 @@ export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) 
   const [error, setError] = useState<string | null>(null);
   const [isAttaching, setIsAttaching] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [coverageLevel, setCoverageLevel] = useState<'Basic' | 'Standard' | 'End-to-End' | 'Max' | 'XMax'>('Basic');
 
   useEffect(() => {
     if (isOpen && issue) {
-      // Reset state on open
+      // Reset state on open, but DO NOT auto-generate
       setGeneratedTestCases([]);
       setError(null);
-      setIsLoading(true);
-
-      generateTestCasesAction({
-        description: issue.description || '',
-        acceptanceCriteria: issue.acceptanceCriteria || '',
-        projectKey: issue.project.key,
-      })
-        .then((data) => {
-          setGeneratedTestCases(data);
-          if (data.length === 0) {
-            toast({
-              title: "No Test Cases Generated",
-              description: "The AI couldn't generate test cases. Try adding more detail to the issue description or acceptance criteria.",
-              variant: "default",
-            });
-          }
-        })
-        .catch((err) => {
-          console.error(err);
-          setError(err.message || 'Failed to generate test cases.');
-          toast({
-            title: 'Error Generating Test Cases',
-            description: err.message || 'An unexpected error occurred.',
-            variant: 'destructive',
-          });
-        })
-        .finally(() => setIsLoading(false));
+      setIsLoading(false);
+      setCoverageLevel('Basic');
     }
-  }, [isOpen, issue, toast]);
+  }, [isOpen, issue]);
+
+  const handleGenerate = useCallback(() => {
+    if (!issue) return;
+    
+    setGeneratedTestCases([]);
+    setError(null);
+    setIsLoading(true);
+
+    generateTestCasesAction({
+      description: issue.description || '',
+      acceptanceCriteria: issue.acceptanceCriteria || '',
+      projectKey: issue.project.key,
+      coverageLevel: coverageLevel,
+    })
+      .then((data) => {
+        setGeneratedTestCases(data);
+        if (data.length === 0) {
+          toast({
+            title: "No Test Cases Generated",
+            description: "The AI couldn't generate test cases. Try adding more detail to the issue description or acceptance criteria.",
+            variant: "default",
+          });
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+        setError(err.message || 'Failed to generate test cases.');
+        toast({
+          title: 'Error Generating Test Cases',
+          description: err.message || 'An unexpected error occurred.',
+          variant: 'destructive',
+        });
+      })
+      .finally(() => setIsLoading(false));
+  }, [issue, coverageLevel, toast]);
   
   const handleDialogClose = useCallback(() => {
     // Fully reset state on close to ensure clean slate for next opening
@@ -164,8 +183,30 @@ export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) 
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-grow overflow-hidden px-6 py-4">
-          <div className="flex flex-col h-full overflow-hidden">
+        <div className="flex-grow overflow-hidden px-6 py-4 flex flex-col">
+          <div className="flex items-end gap-4 mb-4 p-4 border rounded-lg bg-muted/30">
+            <div className="space-y-1 flex-1">
+              <Label htmlFor="coverage-level">Coverage Level</Label>
+              <Select value={coverageLevel} onValueChange={(v: any) => setCoverageLevel(v)} disabled={isLoading}>
+                <SelectTrigger id="coverage-level" className="w-full">
+                  <SelectValue placeholder="Select coverage level" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Basic">Basic (3-5 tests: Happy path & critical failures)</SelectItem>
+                  <SelectItem value="Standard">Standard (6-10 tests: Includes edge cases)</SelectItem>
+                  <SelectItem value="End-to-End">End-to-End (10-15 tests: Full user journeys)</SelectItem>
+                  <SelectItem value="Max">Max (15-25 tests: Comprehensive & boundaries)</SelectItem>
+                  <SelectItem value="XMax">XMax (25+ tests: Extreme edge cases & full coverage)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={handleGenerate} disabled={isLoading} className="w-[180px]">
+              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+              {generatedTestCases.length > 0 ? "Re-generate" : "Generate Tests"}
+            </Button>
+          </div>
+
+          <div className="flex flex-col flex-grow overflow-hidden">
             {isLoading && (
               <div className="flex flex-col items-center justify-center h-full">
                 <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
@@ -176,7 +217,13 @@ export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) 
               <Alert variant="destructive" className="my-4"><AlertCircle className="h-4 w-4" /><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>
             )}
             {!isLoading && !error && generatedTestCases.length === 0 && (
-              <Alert className="my-4"><Wand2 className="h-4 w-4" /><AlertTitle>No Test Cases Generated</AlertTitle><AlertDescription>The AI could not generate test cases based on the issue details.</AlertDescription></Alert>
+              <div className="flex flex-col items-center justify-center h-full text-center p-8 border rounded-lg bg-muted/10 border-dashed">
+                <Wand2 className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold">Ready to Generate</h3>
+                <p className="text-muted-foreground max-w-md mt-2">
+                  Select your desired test coverage level above and click Generate to create AI-powered test cases for this ticket.
+                </p>
+              </div>
             )}
             {!isLoading && !error && generatedTestCases.length > 0 && (
               <ScrollArea className="h-full pr-4 border rounded-md">

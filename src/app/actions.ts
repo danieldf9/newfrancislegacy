@@ -35,6 +35,9 @@ import {
   type GenerateTestCasesInput,
   type GeneratePlaywrightCodeInput,
   type AnalyzeDocumentInput,
+  type LiveTestingInput,
+  type LiveTestingOutput,
+  LiveTestingOutputSchema
 } from '@/lib/schemas';
 import { z } from 'zod';
 
@@ -830,6 +833,8 @@ export async function analyzeVisualsAction(input: VisualAnalysisInput): Promise<
     throw new Error(friendlyMessage);
   }
 }
+
+
 
 // Fetch Jira Attachment Proxy Action
 export async function fetchJiraAttachmentAction(credentials: JiraCredentials, attachmentUrl: string): Promise<{ base64: string, mimeType: string }> {

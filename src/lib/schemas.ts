@@ -44,6 +44,7 @@ export const GenerateTestCasesInputSchema = z.object({
   description: z.string().describe('The description of the Jira ticket.'),
   acceptanceCriteria: z.string().optional().describe('The acceptance criteria of the Jira ticket.'),
   projectKey: z.string().describe('The key of the Jira project (e.g., PROJ).'),
+  coverageLevel: z.enum(['Basic', 'Standard', 'End-to-End', 'Max', 'XMax']).optional().default('Basic').describe('The desired depth and coverage of the test cases.'),
 });
 export type GenerateTestCasesInput = z.infer<typeof GenerateTestCasesInputSchema>;
 
@@ -184,6 +185,20 @@ export type VisualAnalysisInput = z.infer<typeof VisualAnalysisInputSchema>;
 
 export const VisualAnalysisOutputSchema = z.array(VisualIssueSchema);
 export type VisualAnalysisOutput = z.infer<typeof VisualAnalysisOutputSchema>;
+
+// Schemas for Live Testing Agent
+export const LiveTestingInputSchema = z.object({
+  url: z.string().url({ message: "Please provide a valid URL." }),
+  instructions: z.string().optional().describe("Optional instructions for the agent (e.g., 'Test the login flow')"),
+});
+export type LiveTestingInput = z.infer<typeof LiveTestingInputSchema>;
+
+export const LiveTestingOutputSchema = z.object({
+  testsPerformed: z.array(z.string()).describe("A list of actions or tests the agent performed."),
+  bugsIdentified: z.array(VisualIssueSchema).describe("A list of visual or functional bugs identified during the test."),
+  agentLogs: z.array(z.string()).describe("Internal logs from the agent explaining its reasoning and actions."),
+});
+export type LiveTestingOutput = z.infer<typeof LiveTestingOutputSchema>;
 
 // =================================================
 // Health & Fitness Platform Schemas

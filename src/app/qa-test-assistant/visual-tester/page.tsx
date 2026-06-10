@@ -2,15 +2,15 @@
 "use client";
 
 import React, { useState } from 'react';
-import axios from 'axios';
 import { useToast } from '@/hooks/use-toast';
-import { analyzeVisualsAction, validateLinksAction } from '@/app/actions';
-import type { VisualIssue, LinkCheckResult } from "@/lib/schemas";
+import type { VisualIssue, LiveTestingOutput } from "@/lib/schemas";
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -28,9 +28,7 @@ import {
   Lightbulb,
   HardDrive,
   GanttChartSquare,
-  Globe,
-  X,
-  Image as ImageIcon
+  X
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -38,10 +36,11 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import Image from 'next/image';
 
 const crawlSchema = z.object({
   url: z.string().url({ message: "Please enter a valid URL." }),
+  instructions: z.string().optional(),
+  testDepth: z.enum(['basic', 'standard', 'deep']).default('basic'),
 });
 
 type CrawlFormValues = z.infer<typeof crawlSchema>;
@@ -51,6 +50,8 @@ function VisualTesterForm({ onFormSubmit, isSubmitting }: { onFormSubmit: (data:
     resolver: zodResolver(crawlSchema),
     defaultValues: {
       url: 'https://stytch.com/',
+      instructions: '',
+      testDepth: 'basic',
     },
   });
 
@@ -75,18 +76,54 @@ function VisualTesterForm({ onFormSubmit, isSubmitting }: { onFormSubmit: (data:
                 <FormItem>
                   <FormLabel>Target Website URL</FormLabel>
                   <FormControl>
-                    <div className="flex gap-2">
-                      <Input placeholder="https://example.com" {...field} />
-                      <Button type="submit" disabled={isSubmitting}>
-                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-                        {isSubmitting ? 'Analyzing...' : 'Run Analysis'}
-                      </Button>
-                    </div>
+                    <Input placeholder="https://example.com" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+            
+            <FormField
+              control={form.control}
+              name="instructions"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Instructions / Credentials (Optional)</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="e.g. Please test the login flow using test@example.com / Password123!" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="testDepth"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Test Depth</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select test depth" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="basic">Basic (4 Actions) - Quick Check</SelectItem>
+                      <SelectItem value="standard">Standard (10 Actions) - Normal Run</SelectItem>
+                      <SelectItem value="deep">Deep (25 Actions) - Comprehensive E2E</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <Button type="submit" disabled={isSubmitting} size="lg" className="w-full">
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+                {isSubmitting ? 'Analyzing...' : 'Run Analysis'}
+            </Button>
           </form>
         </Form>
       </CardContent>
@@ -94,7 +131,7 @@ function VisualTesterForm({ onFormSubmit, isSubmitting }: { onFormSubmit: (data:
   );
 }
 
-function ResultsDisplay({ visualIssues, linkResults }: { visualIssues: VisualIssue[], linkResults: LinkCheckResult[] }) {
+function ResultsDisplay({ visualIssues, testsPerformed, agentLogs }: { visualIssues: VisualIssue[], testsPerformed: string[], agentLogs: string[] }) {
     const getSeverityVariant = (
         severity: VisualIssue["severity"]
       ): "destructive" | "default" | "secondary" | "outline" => {
@@ -125,21 +162,14 @@ function ResultsDisplay({ visualIssues, linkResults }: { visualIssues: VisualIss
             return <FileWarning className="h-4 w-4 text-gray-500" />;
         }
       };
-    
-      const getLinkStatusColor = (status: number) => {
-        if (status >= 200 && status < 300) return "text-green-500";
-        if (status >= 400) return "text-red-500";
-        if (status >= 300) return "text-yellow-500";
-        return "text-gray-500";
-      };
 
       return (
         <Card className="h-full">
           <CardHeader>
             <CardTitle>Analysis Report</CardTitle>
             <CardDescription>
-              Found {visualIssues.length} potential visual issue(s) and validated{" "}
-              {linkResults.length} link(s).
+              Found {visualIssues.length} potential visual issue(s) and performed{" "}
+              {testsPerformed.length} action(s).
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -148,8 +178,8 @@ function ResultsDisplay({ visualIssues, linkResults }: { visualIssues: VisualIss
                 <TabsTrigger value="visual-issues">
                   <MonitorSmartphone className="mr-2 h-4 w-4" /> Visual Issues ({visualIssues.length})
                 </TabsTrigger>
-                <TabsTrigger value="link-statuses">
-                  <Link2 className="mr-2 h-4 w-4" /> Link Statuses ({linkResults.length})
+                <TabsTrigger value="agent-logs">
+                  <ScanText className="mr-2 h-4 w-4" /> Agent Actions
                 </TabsTrigger>
               </TabsList>
     
@@ -162,7 +192,7 @@ function ResultsDisplay({ visualIssues, linkResults }: { visualIssues: VisualIss
                         No Visual Issues Found
                         </h3>
                         <p className="mt-1 text-sm text-muted-foreground">
-                        The AI analysis did not detect any significant UI/UX or accessibility issues.
+                        The AI agent did not detect any significant UI/UX or accessibility issues.
                         </p>
                     </div>
                     ) : (
@@ -172,8 +202,8 @@ function ResultsDisplay({ visualIssues, linkResults }: { visualIssues: VisualIss
                         className="w-full mt-4"
                         defaultValue="item-0"
                     >
-                        {visualIssues.map((issue, index) => (
-                        <AccordionItem value={`item-${index}`} key={issue.id}>
+                        {(visualIssues || []).map((issue, index) => (
+                        <AccordionItem value={`item-${index}`} key={issue.id || index}>
                             <AccordionTrigger>
                             <div className="flex items-center gap-4 flex-grow text-left">
                                 {getIssueTypeIcon(issue.type)}
@@ -209,7 +239,7 @@ function ResultsDisplay({ visualIssues, linkResults }: { visualIssues: VisualIss
                                     Suggestions
                                 </h4>
                                 <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-                                    {issue.suggestions.map((suggestion, i) => (
+                                    {(issue.suggestions || []).map((suggestion, i) => (
                                     <li key={i}>{suggestion}</li>
                                     ))}
                                 </ul>
@@ -223,47 +253,24 @@ function ResultsDisplay({ visualIssues, linkResults }: { visualIssues: VisualIss
                 </ScrollArea>
               </TabsContent>
     
-              <TabsContent value="link-statuses">
-                <ScrollArea className="h-[calc(100vh-22rem)] mt-4 rounded-md border">
-                  <Table>
-                    <TableHeader className="sticky top-0 bg-background shadow-sm">
-                      <TableRow>
-                        <TableHead>URL</TableHead>
-                        <TableHead className="w-[100px]">Status</TableHead>
-                        <TableHead>Status Text</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {linkResults.map((link) => (
-                        <TableRow key={link.url}>
-                          <TableCell className="max-w-xs truncate">
-                            <a
-                              href={link.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="hover:underline"
-                            >
-                              {link.url}
-                            </a>
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "font-mono",
-                                getLinkStatusColor(link.status)
-                              )}
-                            >
-                              {link.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className={cn(getLinkStatusColor(link.status))}>
-                            {link.statusText}
-                          </TableCell>
-                        </TableRow>
+              <TabsContent value="agent-logs">
+                <ScrollArea className="h-[calc(100vh-22rem)] mt-4 rounded-md border p-4 bg-muted/30">
+                  <h4 className="font-semibold text-sm mb-2">Tests Performed</h4>
+                  <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground mb-6">
+                      {(testsPerformed || []).map((test, idx) => (
+                          <li key={idx}>{test}</li>
                       ))}
-                    </TableBody>
-                  </Table>
+                      {(!testsPerformed || testsPerformed.length === 0) && <li>No specific tests recorded.</li>}
+                  </ul>
+
+                  <h4 className="font-semibold text-sm mb-2">Internal Agent Logs</h4>
+                  <div className="space-y-2 font-mono text-xs text-muted-foreground">
+                      {(agentLogs || []).map((log, idx) => (
+                          <div key={idx} className="border-b border-muted-foreground/10 pb-1">
+                             &gt; {log}
+                          </div>
+                      ))}
+                  </div>
                 </ScrollArea>
               </TabsContent>
             </Tabs>
@@ -274,7 +281,8 @@ function ResultsDisplay({ visualIssues, linkResults }: { visualIssues: VisualIss
 
 export default function VisualTesterPage() {
   const [visualIssues, setVisualIssues] = useState<VisualIssue[]>([]);
-  const [linkResults, setLinkResults] = useState<LinkCheckResult[]>([]);
+  const [testsPerformed, setTestsPerformed] = useState<string[]>([]);
+  const [agentLogs, setAgentLogs] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [analyzedUrl, setAnalyzedUrl] = useState<string | null>(null);
@@ -286,116 +294,113 @@ export default function VisualTesterPage() {
     setIsLoading(true);
     setError(null);
     setVisualIssues([]);
-    setLinkResults([]);
+    setTestsPerformed([]);
+    setAgentLogs([]);
     setAnalyzedUrl(data.url);
-    setPreviewType('none');
+    setPreviewType('image');
     setScreenshotData(null);
 
     try {
-        // Step 1: Check if the URL can be iframed
-        const { data: { canBeFramed } } = await axios.post('/api/check-url', { url: data.url });
-        
-        // Generate a placeholder screenshot URL. This avoids the 'canvas' dependency.
-        const seed = data.url.replace(/[^a-zA-Z0-9]/g, '');
-        const screenshotDataUri = `https://picsum.photos/seed/${seed}/1920/1080`;
-
-        if (canBeFramed) {
-            setPreviewType('iframe');
-        } else {
-            setPreviewType('image');
-            toast({
-                title: "Live Preview Unavailable",
-                description: "This site cannot be shown in a live preview. A placeholder image will be used for analysis.",
-            });
-            setScreenshotData(screenshotDataUri);
-        }
-        
-        // Step 2: Run link and visual analysis in parallel
-        const linksPromise = validateLinksAction({ url: data.url });
-        const visualPromise = analyzeVisualsAction({
-            pageUrl: data.url,
-            screenshotDataUri: screenshotDataUri,
+        const response = await fetch('/api/live-tester', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: data.url, instructions: data.instructions, testDepth: data.testDepth })
         });
 
-        const [linksSettled, visualsSettled] = await Promise.allSettled([linksPromise, visualPromise]);
-
-        // Process link results
-        if (linksSettled.status === 'fulfilled' && linksSettled.value.success) {
-            setLinkResults(linksSettled.value.data || []);
-        } else {
-            const linkError = (linksSettled.status === 'fulfilled' && linksSettled.value.error) || (linksSettled.status === 'rejected' && linksSettled.reason?.message) || "Link validation failed.";
-            toast({ title: "Link Check Warning", description: linkError, variant: "destructive" });
-        }
-        
-        // Process visual results
-        if (visualsSettled.status === 'fulfilled') {
-            setVisualIssues(visualsSettled.value);
-        } else {
-            throw new Error(visualsSettled.reason?.message || "Visual analysis failed.");
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || `Server returned ${response.status}`);
         }
 
-        toast({
-            title: "Analysis Complete",
-            description: `Found ${visualsSettled.status === 'fulfilled' ? visualsSettled.value.length : 0} issues and validated ${linksSettled.status === 'fulfilled' && linksSettled.value.data ? linksSettled.value.data.length : 0} links.`,
-        });
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let done = false;
 
+        let lastResult: any = null;
+
+        let serverError: string | null = null;
+        while (reader && !done) {
+            const { value, done: readerDone } = await reader.read();
+            done = readerDone;
+            if (value) {
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n');
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const parsed = JSON.parse(line.substring(6));
+                            if (parsed.type === 'log') {
+                                setAgentLogs(prev => [...prev, parsed.data]);
+                            } else if (parsed.type === 'screenshot') {
+                                setScreenshotData(parsed.data);
+                            } else if (parsed.type === 'result') {
+                                lastResult = parsed.data;
+                                setVisualIssues(parsed.data.bugsIdentified || []);
+                                setTestsPerformed(parsed.data.testsPerformed || []);
+                                toast({
+                                    title: "Analysis Complete",
+                                    description: `Agent performed ${parsed.data.testsPerformed?.length || 0} actions and found ${parsed.data.bugsIdentified?.length || 0} issues.`,
+                                });
+                            } else if (parsed.type === 'error') {
+                                serverError = parsed.data;
+                            }
+                        } catch (e) {
+                            // Ignored parse error for partial chunks
+                        }
+                    }
+                }
+            }
+            if (serverError) throw new Error(serverError);
+        }
     } catch (err: any) {
-        console.error("Visual analysis failed:", err);
-        const errorMessage = err.response?.data?.error || err.message || "An unknown error occurred during the analysis.";
-        setError(errorMessage);
+        console.error("Live testing failed:", err);
+        setError(err.message || "An unknown error occurred during the analysis.");
         toast({
             title: "Analysis Failed",
-            description: errorMessage,
+            description: err.message,
             variant: "destructive",
         });
-        setPreviewType('none');
     } finally {
         setIsLoading(false);
     }
   };
 
   const renderPreview = () => {
-    switch (previewType) {
-        case 'iframe':
-            return (
-                 <iframe
-                    src={analyzedUrl!}
-                    className="w-full h-[calc(100vh-16rem)] border rounded-md"
-                    sandbox="allow-scripts allow-same-origin"
-                    title="Live Website Preview"
-                ></iframe>
-            );
-        case 'image':
-            return (
-                <div className="w-full h-[calc(100vh-16rem)] border rounded-md relative bg-muted overflow-hidden">
-                    {screenshotData ? (
-                        <Image
+    if (previewType === 'image') {
+        return (
+            <div className="w-full h-[calc(100vh-16rem)] border rounded-md relative bg-muted flex items-center justify-center overflow-hidden">
+                {screenshotData ? (
+                    <>
+                        <img
                             src={screenshotData}
-                            alt="Website Screenshot"
-                            layout="fill"
-                            objectFit="contain"
-                            objectPosition="top"
+                            alt="Agent Live View"
+                            className="w-full h-full object-contain object-top shadow-lg"
                         />
-                    ) : (
-                        <div className="flex items-center justify-center h-full text-muted-foreground">
-                            <Loader2 className="h-8 w-8 animate-spin" />
-                        </div>
-                    )}
-                </div>
-            );
-        default:
-            return null;
+                        {agentLogs.length > 0 && (
+                            <div className="absolute bottom-2 left-2 right-2 bg-black/60 text-white p-2 text-xs rounded">
+                                {agentLogs[agentLogs.length - 1]}
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <div className="flex flex-col items-center justify-center text-slate-400">
+                        <Loader2 className="h-8 w-8 animate-spin mb-4 text-slate-500" />
+                        <p>Waiting for agent to capture view...</p>
+                        {agentLogs.length > 0 && (
+                            <p className="text-xs mt-2 text-slate-500 max-w-sm text-center">
+                                {agentLogs[agentLogs.length - 1]}
+                            </p>
+                        )}
+                    </div>
+                )}
+            </div>
+        );
     }
+    return null;
   }
   
   const PreviewTitle = () => {
-      if (previewType === 'iframe') {
-          return <><Globe className="mr-2 h-5 w-5"/> Live Preview</>;
-      }
-      if (previewType === 'image') {
-          return <><ImageIcon className="mr-2 h-5 w-5"/> Screenshot Preview</>;
-      }
-      return null;
+      return <><MonitorSmartphone className="mr-2 h-5 w-5"/> Agent Live View</>;
   }
 
   return (
@@ -425,8 +430,7 @@ export default function VisualTesterPage() {
                 <CardContent>
                     {renderPreview()}
                      <p className="text-xs text-muted-foreground mt-2">
-                        {previewType === 'iframe' && 'Note: Some websites may not load in the preview due to security restrictions. The analysis will still work correctly.'}
-                        {previewType === 'image' && 'A live preview was blocked by the site\'s security policy, so a static screenshot is shown instead.'}
+                        You are watching a live stream of the headless browser as the agent interacts with it.
                     </p>
                 </CardContent>
             </Card>
@@ -439,10 +443,11 @@ export default function VisualTesterPage() {
                         </div>
                     </Card>
                 ) : (
-                    <ResultsDisplay
-                        visualIssues={visualIssues}
-                        linkResults={linkResults}
-                    />
+                    <div className="lg:col-span-1 h-full min-h-[500px]">
+                        {isLoading || visualIssues.length > 0 || error || testsPerformed.length > 0 ? (
+                            <ResultsDisplay visualIssues={visualIssues} testsPerformed={testsPerformed} agentLogs={agentLogs} />
+                        ) : null}
+                    </div>
                 )}
             </div>
          </div>

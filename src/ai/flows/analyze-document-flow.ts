@@ -8,8 +8,9 @@
  * - AnalyzeDocumentOutput - The return type for the analyzeDocument function.
  */
 
-import {ai} from '@/ai/genkit';
+import { ai } from '@/ai/genkit';
 import { AnalyzeDocumentInputSchema, AnalyzeDocumentOutputSchema, type AnalyzeDocumentInput, type AnalyzeDocumentOutput } from '@/lib/schemas';
+import { executeWithFallback } from '@/ai/fallback';
 
 export async function analyzeDocument(input: AnalyzeDocumentInput): Promise<AnalyzeDocumentOutput> {
   return analyzeDocumentFlow(input);
@@ -73,11 +74,11 @@ const analyzeDocumentFlow = ai.defineFlow(
     outputSchema: AnalyzeDocumentOutputSchema,
   },
   async (input) => {
-    const {output} = await analyzeDocumentPrompt(input);
-    if (!output) {
-      console.warn('AI analysis returned no output for document:', input.documentDataUri.substring(0,50) + "...");
+    try {
+      return await executeWithFallback(analyzeDocumentPrompt, input);
+    } catch (e) {
+      console.warn('AI analysis returned no output or failed:', e);
       return [];
     }
-    return output;
   }
 );

@@ -6,7 +6,10 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { VisualAnalysisInputSchema, VisualAnalysisOutputSchema, type VisualAnalysisInput, type VisualAnalysisOutput } from '@/lib/schemas';
+import { z } from 'zod';
+import type { VisualAnalysisInput, VisualAnalysisOutput } from '@/lib/schemas';
+import { VisualAnalysisInputSchema, VisualAnalysisOutputSchema } from '@/lib/schemas';
+import { executeWithFallback } from '@/ai/fallback';
 
 export async function analyzeVisuals(input: VisualAnalysisInput): Promise<VisualAnalysisOutput> {
   return visualAnalysisFlow(input);
@@ -52,11 +55,11 @@ const visualAnalysisFlow = ai.defineFlow(
     outputSchema: VisualAnalysisOutputSchema,
   },
   async (input) => {
-    const { output } = await visualAnalysisPrompt(input);
-    if (!output) {
-      console.warn('AI visual analysis returned no output for URL:', input.pageUrl);
+    try {
+      return await executeWithFallback(visualAnalysisPrompt, input);
+    } catch (e) {
+      console.warn('AI analysis returned no output or failed:', e);
       return [];
     }
-    return output;
   }
 );

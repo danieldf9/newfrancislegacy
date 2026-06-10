@@ -9,6 +9,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import type { NutritionAnalysisInput, NutritionAnalysisOutput } from '@/lib/schemas';
 import { NutritionAnalysisInputSchema, NutritionAnalysisOutputSchema } from '@/lib/schemas';
+import { executeWithFallback } from '@/ai/fallback';
 
 
 export async function getNutritionPlan(input: NutritionAnalysisInput): Promise<NutritionAnalysisOutput> {
@@ -50,10 +51,6 @@ const nutritionAnalysisFlow = ai.defineFlow(
     outputSchema: NutritionAnalysisOutputSchema,
   },
   async (input) => {
-    const { output } = await nutritionAnalysisPrompt(input);
-    if (!output) {
-      throw new Error("The AI failed to generate a nutrition plan. Please try adjusting your inputs.");
-    }
-    return output;
+    return await executeWithFallback(nutritionAnalysisPrompt, input);
   }
 );

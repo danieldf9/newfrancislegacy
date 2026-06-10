@@ -5,6 +5,7 @@
 
 import { ai } from '@/ai/genkit';
 import { DailyWorkoutInputSchema, DailyWorkoutOutputSchema, type DailyWorkoutInput, type DailyWorkoutOutput } from '@/lib/schemas';
+import { executeWithFallback } from '@/ai/fallback';
 
 export async function getDailyWorkout(input: DailyWorkoutInput): Promise<DailyWorkoutOutput> {
   return dailyWorkoutFlow(input);
@@ -48,10 +49,6 @@ const dailyWorkoutFlow = ai.defineFlow(
     outputSchema: DailyWorkoutOutputSchema,
   },
   async (input) => {
-    const { output } = await dailyWorkoutPrompt(input);
-    if (!output) {
-      throw new Error("The AI failed to generate a daily workout. Please try again.");
-    }
-    return output;
+    return await executeWithFallback(dailyWorkoutPrompt, input);
   }
 );

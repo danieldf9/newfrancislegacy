@@ -80,6 +80,7 @@ export default function PlaywrightGeneratorPage() {
       description: issue.description || '',
       acceptanceCriteria: issue.acceptanceCriteria || '',
       projectKey: issue.project.key,
+      coverageLevel: 'Basic',
     })
     .then(testCases => {
       setGeneratedTestCases(testCases);

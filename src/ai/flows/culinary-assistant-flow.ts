@@ -4,6 +4,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { RecipeSchema, CulinarySuggestionOutputSchema, type CulinarySuggestionOutput, type Recipe } from '@/lib/schemas';
+import { executeWithFallback } from '@/ai/fallback';
 
 const culinaryAssistantPrompt = ai.definePrompt({
     name: 'culinaryAssistantPrompt',

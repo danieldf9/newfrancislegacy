@@ -9,6 +9,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import type { InvestmentAdvisorInput, InvestmentAdvisorOutput } from '@/lib/schemas';
 import { InvestmentAdvisorInputSchema, InvestmentAdvisorOutputSchema } from '@/lib/schemas';
+import { executeWithFallback } from '@/ai/fallback';
 
 // This is a mock function. In a real application, you would fetch this from a live API.
 const getMockStockPrice = async (ticker: string): Promise<number> => {
@@ -108,10 +109,6 @@ const investmentAdvisorFlow = ai.defineFlow(
     outputSchema: InvestmentAdvisorOutputSchema,
   },
   async (input) => {
-    const { output } = await investmentAdvisorPrompt(input);
-    if (!output) {
-      throw new Error("The AI failed to generate an investment plan. Please try adjusting your inputs.");
-    }
-    return output;
+    return await executeWithFallback(investmentAdvisorPrompt, input);
   }
 );
