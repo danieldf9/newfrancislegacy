@@ -183,6 +183,7 @@ When you are ready to finish, stop calling tools and just return the final JSON 
                             model: 'googleai/gemini-3.1-flash-lite',
                             messages: chatHistory as any,
                             tools: [navigateTool, clickTool, typeTool, getPageInfoTool],
+                            returnToolRequests: true,
                         });
 
                         chatHistory.push(response.message);
